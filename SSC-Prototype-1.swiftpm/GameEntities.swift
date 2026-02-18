@@ -30,6 +30,7 @@ enum PacketType {
 
 class PacketNode: SKShapeNode {
     let type: PacketType
+    var hasVisitedRouter: Bool = false
     
     init(type: PacketType) {
         self.type = type
@@ -54,4 +55,5 @@ class PacketNode: SKShapeNode {
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+    
 }
