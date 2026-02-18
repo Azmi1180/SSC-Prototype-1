@@ -8,10 +8,15 @@
 import SwiftUI
 
 class GameController: ObservableObject {
-    @Published var score: Int = 0    
-    @Published var statusText: String = "SYSTEM_READY"
-        
-    func incrementScore() {
-        score += 1
+    @Published var score: Int = 0
+    
+    @Published var showLogicMenu: Bool = false
+    @Published var selectedRouterLogic: RouterLogic = .random
+    
+    var onLogicChanged: ((RouterLogic) -> Void)?
+    
+    func updateLogic(_ newLogic: RouterLogic) {
+        selectedRouterLogic = newLogic
+        onLogicChanged?(newLogic)
     }
 }
