@@ -4,50 +4,43 @@ import SpriteKit
 struct ContentView: View {
     @StateObject var controller = GameController()
     
+    var scene: SKScene {
+        let scene = GameScene()
+        scene.scaleMode = .resizeFill
+        scene.gameController = controller
+        return scene
+    }
+    
     var body: some View {
-        GeometryReader { geometry in
+        GeometryReader { geo in
             ZStack {
-                // Layer 1: The Game World
-                // We create the scene dynamically based on the geometry size
-                SpriteView(scene: makeScene(size: geometry.size))
+                SpriteView(scene: scene)
                     .ignoresSafeArea()
                 
-                // Layer 2: The HUD (stays the same)
+                // HUD
                 VStack {
                     HStack {
-                        Text("PACKET STATION")
-                            .font(.system(.headline, design: .monospaced))
-                            .foregroundColor(.white)
-                            .padding()
-                        
+                        Text("LOGIC: \(controller.selectedRouterLogic.rawValue)")
+                            .font(.system(.caption, design: .monospaced))
+                            .padding(8)
+                            .background(Color.black.opacity(0.6))
+                            .foregroundColor(.yellow)
+                            .cornerRadius(4)
                         Spacer()
-                        
-                        VStack(alignment: .trailing) {
-                            Text("SCORE: \(controller.score)")
-                                .font(.system(.title, design: .monospaced))
-                                .fontWeight(.bold)
-                                .foregroundColor(Theme.accent)
-                            
-                            Text(controller.statusText)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.gray)
-                        }
-                        .padding()
+                        Text("SCORE: \(controller.score)")
+                            .font(.monospaced(.title)())
+                            .foregroundColor(.white)
                     }
-                    .background(Color.black.opacity(0.5))
-                    
+                    .padding()
                     Spacer()
                 }
             }
+            // The Logic Sheet
+            .sheet(isPresented: $controller.showLogicMenu) {
+                LogicMenu(controller: controller)
+                    .presentationDetents([.medium]) // iOS 16+ half sheet
+            }
         }
         .statusBar(hidden: true)
-    }
-    
-    // Helper to create the scene with the correct size
-    func makeScene(size: CGSize) -> SKScene {
-        let scene = GameScene(size: size)
-        scene.scaleMode = .resizeFill // crucial for responsiveness
-        scene.gameController = controller
-        return scene
     }
 }
