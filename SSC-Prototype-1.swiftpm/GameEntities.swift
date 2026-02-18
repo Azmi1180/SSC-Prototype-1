@@ -57,3 +57,26 @@ class PacketNode: SKShapeNode {
     }
     
 }
+
+
+
+enum RouterLogic: String, CaseIterable {
+    case random = "RANDOM"
+    case sortColor = "SORT: RED/BLUE"
+    case privacy = "FIREWALL"
+}
+
+class RouterNode: SKShapeNode {
+    var logic: RouterLogic = .random
+    
+    func setupVisuals() {
+        self.fillColor = Theme.nodeCore
+        self.strokeColor = .white
+        self.lineWidth = 4
+                
+        let icon = SKLabelNode(text: "⚙️")
+        icon.verticalAlignmentMode = .center
+        icon.fontSize = 20
+        addChild(icon)
+    }
+}
