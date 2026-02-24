@@ -10,54 +10,51 @@ import SpriteKit
 
 class GameScene: SKScene {
     weak var gameController: GameController?
-    
-    // The Nodes
+        
     var source: SKShapeNode!
     var router: RouterNode!
-    var destA: SKShapeNode! // Top
-    var destB: SKShapeNode! // Bottom
+    var destA: SKShapeNode!
+    var destB: SKShapeNode!
     
     override func didMove(to view: SKView) {
         backgroundColor = Theme.background
         
-        // Listen for Logic Updates from SwiftUI
-        gameController?.onLogicChanged = { [weak self] newLogic in
-            self?.router.logic = newLogic
-            print("Router Logic Updated to: \(newLogic)")
+        // 1. Sync Logic
+        gameController?.onRulesChanged = { [weak self] newRules in
+            self?.router.rules = newRules
+            print("Router Memory Updated: \(newRules.count) instructions.")
         }
         
         setupLevel()
         startSpawning()
     }
     
+    
     func setupLevel() {
-        removeAllChildren() // Clean slate
-        
-        // Coordinates (Percentages)
+        removeAllChildren()
+            
         let cx = size.width * 0.5
         let cy = size.height * 0.5
         
-        // 1. Source (Left)
         source = createNode(at: CGPoint(x: size.width * 0.15, y: cy), name: "Source", isRouter: false)
-        
-        // 2. Router (Center)
+                
         let rNode = RouterNode(circleOfRadius: 30)
         rNode.position = CGPoint(x: cx, y: cy)
         rNode.name = "Router"
         rNode.setupVisuals()
         addChild(rNode)
-        router = rNode // Store reference
+        router = rNode
+                
+        destA = DestinationNode(type: .video, radius: 25)
+        destA.position = CGPoint(x: size.width * 0.85, y: cy + 150)
+        destA.name = "Server A"
+        addChild(destA)
+                
+        destB = DestinationNode(type: .email, radius: 25)
+        destB.position = CGPoint(x: size.width * 0.85, y: cy - 150)
+        destB.name = "Server B"
+        addChild(destB)
         
-        // 3. Destinations (Right Split)
-        // Dest A (Top Right - RED)
-        destA = createNode(at: CGPoint(x: size.width * 0.85, y: cy + 150), name: "Server A", isRouter: false)
-        destA.fillColor = Theme.packetVideo // Color code it Red
-        
-        // Dest B (Bottom Right - BLUE)
-        destB = createNode(at: CGPoint(x: size.width * 0.85, y: cy - 150), name: "Server B", isRouter: false)
-        destB.fillColor = Theme.packetEmail // Color code it Blue
-        
-        // 4. Draw Tracks
         drawTrack(from: source.position, to: router.position)
         drawTrack(from: router.position, to: destA.position)
         drawTrack(from: router.position, to: destB.position)
@@ -90,56 +87,48 @@ class GameScene: SKScene {
         
         packet.run(SKAction.sequence([move, decide]))
     }
+
     
-    // --- The Core Logic Engine ---
     func processPacketAtRouter(_ packet: PacketNode) {
         
-        // 1. Determine Target based on Router Logic
-        var targetNode: SKShapeNode
+        var selectedAction: RouterAction? = nil
         
-        switch router.logic {
-        case .random:
-            targetNode = Bool.random() ? destA : destB
+        for rule in router.rules {
+            if rule.conditionColor == packet.type {
+                selectedAction = rule.action
+                break
+            }
+        }
+        
+        // 2. Default Fallback (If no rules match, go Random)
+        if selectedAction == nil {
+            selectedAction = Bool.random() ? .sendTop : .sendBottom
+        }
+        
+        // 3. Execute Action
+        switch selectedAction! {
+        case .drop:
+            // Burn Effect
+            let scale = SKAction.scale(to: 0.1, duration: 0.2)
+            let fade = SKAction.fadeOut(withDuration: 0.2)
+            let remove = SKAction.removeFromParent()
+            packet.run(SKAction.sequence([scale, fade, remove]))
             
-        case .sortColor:
-            // Red (Video) -> Up (DestA), Blue (Email) -> Down (DestB)
-            // Malware goes Random
-            if packet.type == .video { targetNode = destA }
-            else if packet.type == .email { targetNode = destB }
-            else { targetNode = Bool.random() ? destA : destB }
-            
-        case .privacy:
-            // If Malware, DESTROY IT
+            // Check if dropping was good or bad
             if packet.type == .malware {
-                packet.run(SKAction.sequence([
-                    SKAction.scale(to: 0, duration: 0.1),
-                    SKAction.removeFromParent()
-                ]))
-                return // Stop processing
+                gameController?.score += 5 // Good job!
+            } else {
+                gameController?.score -= 5 // Dropped good data!
             }
-            targetNode = Bool.random() ? destA : destB
+            
+        case .sendTop:
+            movePacket(packet, to: destA)
+            
+        case .sendBottom:
+            movePacket(packet, to: destB)
         }
-        
-        // 2. Move to Target
-        let distance = hypot(targetNode.position.x - router.position.x, targetNode.position.y - router.position.y)
-        let duration = distance / packet.type.speed
-        
-        let move = SKAction.move(to: targetNode.position, duration: duration)
-        let finish = SKAction.run {
-            // Check if it went to the "Correct" server color
-            // (Simple visual check: if packet color matches node color, score points)
-            if packet.type.color == targetNode.fillColor {
-                self.gameController?.score += 10
-            } else if packet.type == .malware {
-                self.gameController?.score -= 50 // Crash!
-            }
-            packet.removeFromParent()
-        }
-        
-        packet.run(SKAction.sequence([move, finish]))
     }
-    
-    // --- Interactions ---
+        
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
@@ -147,11 +136,51 @@ class GameScene: SKScene {
         
         for node in nodes {
             if node.name == "Router" {
-                // Open the SwiftUI Menu
+                gameController?.activeRules = router.rules
                 gameController?.showLogicMenu = true
-                gameController?.selectedRouterLogic = router.logic
             }
         }
+    }
+    
+    func movePacket(_ packet: PacketNode, to node: SKNode) {
+        let dx = node.position.x - packet.position.x
+        let dy = node.position.y - packet.position.y
+        let dist = sqrt(dx*dx + dy*dy)
+        let duration = dist / packet.type.speed
+        
+        let move = SKAction.move(to: node.position, duration: duration)
+        let finish = SKAction.run { [weak self] in
+            self?.checkSuccess(packet: packet, target: node)
+        }
+        packet.run(SKAction.sequence([move, finish]))
+    }
+        
+    func checkSuccess(packet: PacketNode, target: SKNode) {
+        // Cast the target to our new DestinationNode class
+        guard let server = target as? DestinationNode else { return }
+        
+        print("Checking: Packet(\(packet.type)) vs Server(\(server.acceptedType))")
+        
+        if packet.type == .malware {
+            // Buat malware crashed the server
+            gameController?.score -= 50
+//            Shake effect
+            let shake = SKAction.sequence([SKAction.moveBy(x: -5, y: 0, duration: 0.05), SKAction.moveBy(x: 10, y: 0, duration: 0.05), SKAction.moveBy(x: -5, y: 0, duration: 0.05)])
+            server.run(shake)
+        }
+        else if packet.type == server.acceptedType {
+            // SUCCESS: Types match exactly
+            gameController?.score += 10
+            // Feedback: Pulse effect
+            server.run(SKAction.sequence([SKAction.scale(to: 1.2, duration: 0.1), SKAction.scale(to: 1.0, duration: 0.1)]))
+        }
+        else {
+            // WRONG DATA TYPE (e.g. Email sent to Video Server)
+            gameController?.score -= 10
+        }
+        
+        // Remove packet
+        packet.removeFromParent()
     }
     
     // --- Helpers ---

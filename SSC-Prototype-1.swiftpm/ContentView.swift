@@ -14,33 +14,52 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                SpriteView(scene: scene)
+                // Layer 1: Game
+                // PAUSE LOGIC ADDED HERE:
+                SpriteView(scene: scene, isPaused: controller.showLogicMenu)
                     .ignoresSafeArea()
                 
-                // HUD
+                // Layer 2: HUD
                 VStack {
                     HStack {
-                        Text("LOGIC: \(controller.selectedRouterLogic.rawValue)")
-                            .font(.system(.caption, design: .monospaced))
-                            .padding(8)
-                            .background(Color.black.opacity(0.6))
-                            .foregroundColor(.yellow)
-                            .cornerRadius(4)
+                        HStack {
+                            Image(systemName: "cpu")
+                            Text("RULES: \(controller.activeRules.count)/3")
+                        }
+                        .font(.system(.caption, design: .monospaced))
+                        .padding(8)
+                        .background(Color.black.opacity(0.8)) // Darker for contrast
+                        .foregroundColor(.yellow)
+                        .cornerRadius(4)
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.yellow, lineWidth: 1))
+                        
                         Spacer()
+                        
                         Text("SCORE: \(controller.score)")
-                            .font(.monospaced(.title)())
+                            .font(.system(.title, design: .monospaced))
+                            .fontWeight(.bold)
                             .foregroundColor(.white)
+                            .shadow(color: .black, radius: 2)
                     }
                     .padding()
+                    
                     Spacer()
+                    
+                    if !controller.showLogicMenu {
+                        Text("// TAP CENTER NODE TO CONFIGURE")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.bottom, 20)
+                    }
                 }
             }
-            // The Logic Sheet
-            .sheet(isPresented: $controller.showLogicMenu) {
+            if controller.showLogicMenu {
                 LogicMenu(controller: controller)
-                    .presentationDetents([.medium]) // iOS 16+ half sheet
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    .zIndex(100)
             }
         }
         .statusBar(hidden: true)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: controller.showLogicMenu)
     }
 }

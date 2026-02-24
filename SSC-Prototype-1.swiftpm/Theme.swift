@@ -30,3 +30,10 @@ struct Theme {
     static let packetEmail = SKColor(red: 0.0, green: 0.8, blue: 1.0, alpha: 1.0) // Neon Cyan
     static let packetMalware = SKColor(red: 0.0, green: 1.0, blue: 0.4, alpha: 1.0) // Matrix Green
 }
+
+
+extension SKColor {
+    var toSwiftUI: Color {
+        return Color(self)
+    }
+}
