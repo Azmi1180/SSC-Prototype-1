@@ -91,96 +91,45 @@ class PacketNode: SKShapeNode {
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
-// MARK: - 2. THE ROUTER (Matte Black + Antennas)
 class RouterNode: SKShapeNode {
     var rules: [LogicRule] = []
     
-    // Child references for animation
-    private var led1: SKShapeNode!
-    private var led2: SKShapeNode!
-    private var led3: SKShapeNode!
-    
-    override init() {
+    init(radius: CGFloat) {
         super.init()
-        setupVisuals()
+        
+        let path = CGPath(ellipseIn: CGRect(x: -radius, y: -radius, width: radius*2, height: radius*2), transform: nil)
+        self.path = path
+        self.fillColor = .clear
+        self.strokeColor = .clear // ganti .red kalau mau debug posisi
+        self.lineWidth = 0
+                
+        self.name = "Router"
     }
     
-    required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    
-    func setupVisuals() {
-        // --- 1. Antennas ---
-        let antennaPath = CGMutablePath()
-        antennaPath.move(to: CGPoint(x: -20, y: 10))
-        antennaPath.addLine(to: CGPoint(x: -30, y: 50)) // Kiri
-        antennaPath.move(to: CGPoint(x: 20, y: 10))
-        antennaPath.addLine(to: CGPoint(x: 30, y: 50)) // Kanan
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
         
-        let antennas = SKShapeNode(path: antennaPath)
-        antennas.strokeColor = .gray
-        antennas.lineWidth = 3
-        antennas.lineCap = .round
-        antennas.zPosition = -1
-        addChild(antennas)
-        
-        // --- 2. Main Body (Rounded Rect) ---
-        let bodySize = CGSize(width: 80, height: 40)
-        let bodyRect = CGRect(x: -bodySize.width/2, y: -bodySize.height/2, width: bodySize.width, height: bodySize.height)
-        
-        self.path = CGPath(roundedRect: bodyRect, cornerWidth: 10, cornerHeight: 10, transform: nil)
-        self.fillColor = GameTheme.darkMatte
-        self.strokeColor = .gray
-        self.lineWidth = 2
-        
-        // --- 3. LEDs (Cyan Standby) ---
-        func createLED(x: CGFloat) -> SKShapeNode {
-            let led = SKShapeNode(circleOfRadius: 3)
-            led.position = CGPoint(x: x, y: 0)
-            led.fillColor = GameTheme.neonCyan
-            led.strokeColor = .clear
-            // Add Glow
-            let glow = SKShapeNode(circleOfRadius: 5)
-            glow.fillColor = GameTheme.neonCyan
-            glow.alpha = 0.3
-            glow.strokeColor = .clear
-            led.addChild(glow)
-            return led
+    func animateProcessing(success: Bool) {
+        let originalScale = self.xScale == 0 ? 1.0 : self.xScale
+        let scaleUp = SKAction.scale(to: originalScale * 1.15, duration: 0.08)
+        let scaleDown = SKAction.scale(to: originalScale, duration: 0.12)
+                
+        let oldStroke = self.strokeColor
+        let oldLineWidth = self.lineWidth
+        let flashColor: SKColor = success ? GameTheme.neonGreen : .red
+        let setFlash = SKAction.run { [weak self] in
+            self?.strokeColor = flashColor
+            self?.lineWidth = 2.0
+        }
+        let clearFlash = SKAction.run { [weak self] in
+            self?.strokeColor = oldStroke
+            self?.lineWidth = oldLineWidth
         }
         
-        led1 = createLED(x: -15)
-        led2 = createLED(x: 0)
-        led3 = createLED(x: 15)
-        
-        addChild(led1)
-        addChild(led2)
-        addChild(led3)
-        
-        // Breathing Animation for Standby
-        let dim = SKAction.fadeAlpha(to: 0.5, duration: 1.5)
-        let bright = SKAction.fadeAlpha(to: 1.0, duration: 1.5)
-        let breathe = SKAction.repeatForever(SKAction.sequence([dim, bright]))
-        
-        led1.run(breathe)
-        led2.run(breathe)
-        led3.run(breathe)
-    }
-    
-    // Animation when processing a packet
-    func animateProcessing(success: Bool) {
-        let color = success ? GameTheme.neonGreen : GameTheme.neonPink
-        let flash = SKAction.sequence([
-            SKAction.run { [weak self] in
-                self?.led1.fillColor = color
-                self?.led2.fillColor = color
-                self?.led3.fillColor = color
-            },
-            SKAction.wait(forDuration: 0.1),
-            SKAction.run { [weak self] in
-                self?.led1.fillColor = GameTheme.neonCyan
-                self?.led2.fillColor = GameTheme.neonCyan
-                self?.led3.fillColor = GameTheme.neonCyan
-            }
-        ])
-        self.run(flash)
+        let group = SKAction.group([scaleUp, setFlash])
+        let sequence = SKAction.sequence([group, scaleDown, clearFlash])
+        self.run(sequence)
     }
 }
 

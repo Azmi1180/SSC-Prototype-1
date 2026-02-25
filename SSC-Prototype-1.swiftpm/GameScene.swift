@@ -44,7 +44,7 @@ class GameScene: SKScene {
         addChild(source)
                 
         // Setup Router (Baru)
-        let rNode = RouterNode() // Init tanpa parameter radius, visual sudah di dalam class
+        let rNode = RouterNode(radius: 10) // Init tanpa parameter radius, visual sudah di dalam class
         rNode.position = CGPoint(x: cx, y: cy)
         rNode.name = "Router"
         addChild(rNode)
