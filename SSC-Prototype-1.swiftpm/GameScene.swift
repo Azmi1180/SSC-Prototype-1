@@ -5,70 +5,92 @@
 //  Created by Muhammad Azmi on 18/02/26.
 //
 
-
 import SpriteKit
 
 class GameScene: SKScene {
     weak var gameController: GameController?
-        
-    var source: SKShapeNode!
-    var router: RouterNode! // Menggunakan class baru
-    var destA: DestinationNode! // Menggunakan class baru
-    var destB: DestinationNode! // Menggunakan class baru
+    
+    // Karena dinamis, kita simpan dalam bentuk array/dictionary
+    var sources: [SKShapeNode] = []
+    var routers: [UUID: RouterNode] = [:] // Pakai dictionary agar mudah dicari berdasarkan ID
+    var servers: [DestinationNode] = []
     
     override func didMove(to view: SKView) {
-        // Ganti background ke warna Cyberpunk Dark
         backgroundColor = GameTheme.darkerBase
         
-        // 1. Sync Logic dari Controller ke Router
-        gameController?.onRulesChanged = { [weak self] newRules in
-            self?.router.rules = newRules
-            print("Router Memory Updated: \(newRules.count) instructions.")
+        // 1. Sync Logic dari Controller ke Router Spesifik
+        gameController?.onRulesChanged = { [weak self] routerID, newRules in
+            self?.routers[routerID]?.rules = newRules
+            print("Router [\(routerID.uuidString.prefix(4))] Memory Updated: \(newRules.count) instructions.")
         }
         
-        setupLevel()
+        // 2. Load Level Dinamis dari Controller
+        if let levelData = gameController?.currentLevel {
+            loadLevel(levelData: levelData)
+        }
+        
         startSpawning()
     }
     
-    func setupLevel() {
+    // MARK: - LEVEL LOADER
+    func loadLevel(levelData: LevelData) {
         removeAllChildren()
+        sources.removeAll()
+        routers.removeAll()
+        servers.removeAll()
+        
+        // 1. Setup Sources (Clients)
+        for client in levelData.clients {
+            let sourceNode = SKShapeNode(circleOfRadius: 8)
+            sourceNode.position = skPosition(for: client.position)
+            sourceNode.fillColor = .white
+            sourceNode.alpha = 0.2
+            addChild(sourceNode)
+            sources.append(sourceNode)
+        }
+        
+        // 2. Setup Routers (Invisible Nodes)
+        for routerData in levelData.routers {
+            let rNode = RouterNode(radius: 40) // Area hitbox
+            rNode.position = skPosition(for: routerData.position)
+            rNode.rules = routerData.rules
+            rNode.name = "Router_\(routerData.id)"
             
-        let cx = size.width * 0.5
-        let cy = size.height * 0.5
+            // Simpan ID agar bisa di-sync dengan SwiftUI
+            rNode.userData = ["id": routerData.id]
+            
+            addChild(rNode)
+            routers[routerData.id] = rNode
+        }
         
-        // Setup Source (Hanya lingkaran simple sebagai spawn point)
-        source = SKShapeNode(circleOfRadius: 8)
-        source.position = CGPoint(x: size.width * 0.1, y: cy)
-        source.fillColor = .white
-        source.alpha = 0.2
-        addChild(source)
-                
-        // Setup Router (Baru)
-        let rNode = RouterNode(radius: 10) // Init tanpa parameter radius, visual sudah di dalam class
-        rNode.position = CGPoint(x: cx, y: cy)
-        rNode.name = "Router"
-        addChild(rNode)
-        router = rNode
-                
-        // Setup Server A (Video - Atas)
-        destA = DestinationNode(type: .video)
-        destA.position = CGPoint(x: size.width * 0.9, y: cy + 120)
-        destA.name = "Server A"
-        addChild(destA)
-                
-        // Setup Server B (Email - Bawah)
-        destB = DestinationNode(type: .email)
-        destB.position = CGPoint(x: size.width * 0.9, y: cy - 120)
-        destB.name = "Server B"
-        addChild(destB)
-        
-        // Gambar Kabel/Jalur (Track)
-        drawTrack(from: source.position, to: router.position)
-        drawTrack(from: router.position, to: destA.position)
-        drawTrack(from: router.position, to: destB.position)
+        // 3. Setup Servers (Destinations)
+        for serverData in levelData.servers {
+            let sNode = DestinationNode(type: serverData.acceptedType)
+            sNode.position = skPosition(for: serverData.position)
+            addChild(sNode)
+            servers.append(sNode)
+        }
+        // 4. Draw Tracks (Menggambar jalur secara dinamis)
+        // Hubungkan semua source ke router terdekat (Untuk prototype, hubungkan ke router pertama)
+        if let firstRouter = routers.values.first {
+            for source in sources {
+                drawTrack(from: source.position, to: firstRouter.position)
+            }
+            // Hubungkan router ke semua server
+            for server in servers {
+                drawTrack(from: firstRouter.position, to: server.position)
+            }
+        }
     }
     
-    // --- Spawning Logic ---
+    // MARK: - HELPER COORDINATES
+    // SwiftUI pakai Top-Left (0,0), SpriteKit pakai Bottom-Left (0,0). Kita harus balik sumbu Y-nya.
+    func skPosition(for normalized: CGPoint) -> CGPoint {
+        return CGPoint(x: normalized.x * size.width,
+                       y: (1.0 - normalized.y) * size.height)
+    }
+    
+    // MARK: - SPAWNING LOGIC
     func startSpawning() {
         let wait = SKAction.wait(forDuration: 1.5)
         let spawn = SKAction.run { [weak self] in self?.spawnPacket() }
@@ -76,27 +98,29 @@ class GameScene: SKScene {
     }
     
     func spawnPacket() {
+        guard let source = sources.randomElement(),
+              let targetRouter = routers.values.first else { return }
+        
         let type: PacketType = [.video, .email, .malware].randomElement()!
         
-        // Pake class PacketNode baru yang bentuknya Diamond
         let packet = PacketNode(type: type)
         packet.position = source.position
         addChild(packet)
         
         // Move to Router
-        let distance = hypot(router.position.x - source.position.x, router.position.y - source.position.y)
+        let distance = hypot(targetRouter.position.x - source.position.x, targetRouter.position.y - source.position.y)
         let duration = distance / type.speed
         
-        let move = SKAction.move(to: router.position, duration: duration)
+        let move = SKAction.move(to: targetRouter.position, duration: duration)
         let decide = SKAction.run { [weak self] in
-            self?.processPacketAtRouter(packet)
+            self?.processPacketAtRouter(packet, router: targetRouter)
         }
         
         packet.run(SKAction.sequence([move, decide]))
     }
 
-    func processPacketAtRouter(_ packet: PacketNode) {
-        
+    // MARK: - ROUTING LOGIC
+    func processPacketAtRouter(_ packet: PacketNode, router: RouterNode) {
         var selectedAction: RouterAction? = nil
         
         for rule in router.rules {
@@ -106,13 +130,10 @@ class GameScene: SKScene {
             }
         }
         
-        // Default: Random jika tidak ada rules
+        // Default Fallback
         if selectedAction == nil {
             selectedAction = Bool.random() ? .sendTop : .sendBottom
         }
-        
-        // Trigger Animasi LED Router
-        router.animateProcessing(success: true)
         
         // Execute Action
         switch selectedAction! {
@@ -128,43 +149,22 @@ class GameScene: SKScene {
             }
             
         case .sendTop:
-            movePacket(packet, to: destA)
+            // Karena dinamis, "Top" kita asumsikan mencari server Video
+            if let dest = servers.first(where: { $0.acceptedType == .video }) {
+                movePacket(packet, to: dest)
+            } else { packet.removeFromParent() }
             
         case .sendBottom:
-            movePacket(packet, to: destB)
-        }
-    }
-    
-    // Logic Touch untuk membuka menu
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-        
-        // Cek node apa yang disentuh
-        let nodes = nodes(at: location)
-        
-        // Karena RouterNode terdiri dari banyak child (LED, body, antenna),
-        // kita cek parent-nya atau name-nya secara recursive sederhana
-        for node in nodes {
-            if node.name == "Router" || node.parent?.name == "Router" {
-                // UI Feedback
-                let scaleUp = SKAction.scale(to: 1.1, duration: 0.1)
-                let scaleDown = SKAction.scale(to: 1.0, duration: 0.1)
-                router.run(SKAction.sequence([scaleUp, scaleDown]))
-                
-                // Open Menu
-                gameController?.activeRules = router.rules
-                gameController?.showLogicMenu = true
-                return
-            }
+            // "Bottom" kita asumsikan mencari server Email
+            if let dest = servers.first(where: { $0.acceptedType == .email }) {
+                movePacket(packet, to: dest)
+            } else { packet.removeFromParent() }
         }
     }
     
     func movePacket(_ packet: PacketNode, to node: SKNode) {
-        let dx = node.position.x - packet.position.x
-        let dy = node.position.y - packet.position.y
-        let dist = sqrt(dx*dx + dy*dy)
-        let duration = dist / packet.type.speed
+        let distance = hypot(node.position.x - packet.position.x, node.position.y - packet.position.y)
+        let duration = distance / packet.type.speed
         
         let move = SKAction.move(to: node.position, duration: duration)
         let finish = SKAction.run { [weak self] in
@@ -178,11 +178,11 @@ class GameScene: SKScene {
         
         if packet.type == .malware {
             gameController?.score -= 50
-            server.animateError() // Animasi Merah/Shake
+            server.animateError()
         }
         else if packet.type == server.acceptedType {
             gameController?.score += 10
-            server.animateReceive() // Animasi Pulse/Terima
+            server.animateReceive()
         }
         else {
             gameController?.score -= 10
@@ -192,14 +192,19 @@ class GameScene: SKScene {
         packet.removeFromParent()
     }
     
+    // MARK: - VISUALS
     func drawTrack(from: CGPoint, to: CGPoint) {
         let path = CGMutablePath()
         path.move(to: from)
         path.addLine(to: to)
         let line = SKShapeNode(path: path)
-        line.strokeColor = SKColor.white.withAlphaComponent(0.1) // Jalur tipis transparan
+        line.strokeColor = SKColor.white.withAlphaComponent(0.1)
         line.lineWidth = 2
         line.zPosition = -10
         addChild(line)
     }
+    
+    // CATATAN PENTING:
+    // Fungsi 'touchesBegan' DIHAPUS.
+    // Klik sekarang ditangani oleh RouterView di SwiftUI.
 }

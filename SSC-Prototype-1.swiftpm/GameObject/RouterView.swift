@@ -11,6 +11,8 @@ struct RouterView: View {
     // Hubungkan dengan Logic Game
     @ObservedObject var controller: GameController
     
+    var routerID: UUID
+    
     // State lokal untuk animasi visual
     @State private var pulseGlow: Bool = false
     
@@ -126,9 +128,9 @@ struct RouterView: View {
                     let impactMed = UIImpactFeedbackGenerator(style: .medium)
                     impactMed.impactOccurred()
                     
-                    // Buka Logic Menu lewat Controller
+                    // UBAH INI: Beritahu controller router mana yang dipilih
                     withAnimation {
-                        controller.showLogicMenu = true
+                        controller.selectRouter(id: routerID)
                     }
                 }
                 
