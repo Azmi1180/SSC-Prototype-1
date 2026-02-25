@@ -133,76 +133,24 @@ class RouterNode: SKShapeNode {
     }
 }
 
-// MARK: - 3. SERVER DESTINATION (Vertical Tower)
+// MARK: - 3. SERVER DESTINATION (Hitbox)
 class DestinationNode: SKShapeNode {
     var acceptedType: PacketType
-    private var statusLight: SKShapeNode!
+    var serverID: UUID // Simpan ID agar bisa mengirim sinyal ke SwiftUI
     
-    init(type: PacketType) {
+    init(type: PacketType, id: UUID) {
         self.acceptedType = type
+        self.serverID = id
         super.init()
+        let rect = CGRect(x: -20, y: -30, width: 40, height: 60)
+        self.path = CGPath(rect: rect, transform: nil)
         
-        // --- 1. Tower Body ---
-        let w: CGFloat = 40
-        let h: CGFloat = 60
-        let rect = CGRect(x: -w/2, y: -h/2, width: w, height: h)
-        
-        self.path = CGPath(roundedRect: rect, cornerWidth: 4, cornerHeight: 4, transform: nil)
-        self.fillColor = GameTheme.darkerBase
-        self.strokeColor = .gray
-        self.lineWidth = 1
-        
-        // --- 2. Vents (Horizontal Lines) ---
-        for i in 0..<3 {
-            let vent = SKShapeNode(rect: CGRect(x: -12, y: -20 + (CGFloat(i) * 10), width: 24, height: 2))
-            vent.fillColor = .black
-            vent.strokeColor = .clear
-            addChild(vent)
-        }
-        
-        // --- 3. Status Bar (Vertical Neon) ---
-        statusLight = SKShapeNode(rect: CGRect(x: -16, y: -24, width: 3, height: 48), cornerRadius: 1.5)
-        statusLight.fillColor = type.color
-        statusLight.strokeColor = .clear
-        addChild(statusLight)
-        
-        // --- 4. Label ---
-        let label = SKLabelNode(text: type.name)
-        label.fontSize = 10
-        label.fontName = "Menlo-Bold"
-        label.fontColor = type.color
-        label.position = CGPoint(x: 0, y: h/2 + 8)
-        addChild(label)
+        self.fillColor = .clear
+        self.strokeColor = .clear
+        self.lineWidth = 0
     }
     
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    
-    func animateReceive() {
-        let pulse = SKAction.sequence([
-            SKAction.scale(to: 1.1, duration: 0.1),
-            SKAction.scale(to: 1.0, duration: 0.1)
-        ])
-        run(pulse)
-        
-        // Flash light
-        let bright = SKAction.fadeAlpha(to: 1.0, duration: 0.05)
-        let dim = SKAction.fadeAlpha(to: 0.5, duration: 0.05)
-        statusLight.run(SKAction.repeat(SKAction.sequence([dim, bright]), count: 3))
-    }
-    
-    func animateError() {
-        let shake = SKAction.sequence([
-            SKAction.moveBy(x: -3, y: 0, duration: 0.05),
-            SKAction.moveBy(x: 6, y: 0, duration: 0.05),
-            SKAction.moveBy(x: -3, y: 0, duration: 0.05)
-        ])
-        run(shake)
-        
-        statusLight.fillColor = .red
-        run(SKAction.wait(forDuration: 0.5)) { [weak self] in
-            self?.statusLight.fillColor = self?.acceptedType.color ?? .white
-        }
-    }
 }
 
 // MARK: - SHARED MODELS

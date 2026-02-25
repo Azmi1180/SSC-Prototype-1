@@ -45,6 +45,7 @@ class GameController: ObservableObject {
     
     // Menyimpan ID router mana yang sedang diklik & diedit
     @Published var selectedRouterID: UUID? = nil
+    @Published var serverAnimationTrigger: UUID? = nil
     
     // Rules yang ditampilkan di UI Logic Menu (mengikuti router yang dipilih)
     @Published var activeRules: [LogicRule] = []
@@ -52,6 +53,7 @@ class GameController: ObservableObject {
     // Helper to sync: UI -> Controller -> GameScene
     // Sekarang kita mengirim ID routernya juga agar SpriteKit tau router mana yg diupdate
     var onRulesChanged: ((UUID, [LogicRule]) -> Void)?
+    
     
     init() {
         // SETUP DEFAULT LEVEL 1 (Bisa diganti nanti lewat Level Editor)

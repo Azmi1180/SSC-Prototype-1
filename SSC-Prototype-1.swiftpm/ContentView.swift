@@ -42,6 +42,13 @@ struct ContentView: View {
                         .allowsHitTesting(true)
                 }
                 
+                // 2. Loop semua Server
+                ForEach(controller.currentLevel.servers) { server in
+                    ServerRackView(controller: controller, serverID: server.id, acceptedType: server.acceptedType)
+                        .scaleEffect(0.4)
+                        .position(x: server.position.x * geo.size.width, y: server.position.y * geo.size.height)
+                }
+                
                 // Nanti kamu bisa tambahkan ServerView() dan ClientView() di sini
                 // dengan ForEach yang sama jika mau full SwiftUI.
                 // Sementara ini Server dan Client masih digambar oleh SpriteKit.

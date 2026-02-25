@@ -65,7 +65,7 @@ class GameScene: SKScene {
         
         // 3. Setup Servers (Destinations)
         for serverData in levelData.servers {
-            let sNode = DestinationNode(type: serverData.acceptedType)
+            let sNode = DestinationNode(type: serverData.acceptedType, id: serverData.id)
             sNode.position = skPosition(for: serverData.position)
             addChild(sNode)
             servers.append(sNode)
@@ -178,15 +178,15 @@ class GameScene: SKScene {
         
         if packet.type == .malware {
             gameController?.score -= 50
-            server.animateError()
+            gameController?.serverAnimationTrigger = server.serverID
         }
         else if packet.type == server.acceptedType {
             gameController?.score += 10
-            server.animateReceive()
+            gameController?.serverAnimationTrigger = server.serverID
         }
         else {
-            gameController?.score -= 10
-            server.animateError()
+            gameController?.score -= 10            
+            gameController?.serverAnimationTrigger = server.serverID
         }
         
         packet.removeFromParent()
@@ -203,8 +203,4 @@ class GameScene: SKScene {
         line.zPosition = -10
         addChild(line)
     }
-    
-    // CATATAN PENTING:
-    // Fungsi 'touchesBegan' DIHAPUS.
-    // Klik sekarang ditangani oleh RouterView di SwiftUI.
 }
