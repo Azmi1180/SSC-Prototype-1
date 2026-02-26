@@ -32,17 +32,20 @@ class Scenario1Manager: ObservableObject {
     func startDay1() {
         currentDay = 1
         timeRemaining = 20
-        spawnRate = 3.0
-        
+        spawnRate = 3.0                
+        controller?.currentPacketLoss = 0
+
         // DAY 1: Hanya ada 1 Server (Video/Merah)
         controller?.allowedPackets = [.video]
         controller?.currentLevel = LevelData(
             id: 1, title: "SCENARIO 01", subtitle: "The Localhost",
             clients: [ ClientData(position: CGPoint(x: 0.15, y: 0.5)) ],
-            routers: [ RouterData(position: CGPoint(x: 0.5, y: 0.5)) ],
+            routers: [ RouterData(name: "ROUTER 01", position: CGPoint(x: 0.5, y: 0.5)) ],
             servers: [
-                ServerData(position: CGPoint(x: 0.85, y: 0.25), acceptedType: .video)
-            ]
+                ServerData(name: "VIDEO SERVER", position: CGPoint(x: 0.85, y: 0.25), acceptedType: .video)
+            ],
+            connections: [],
+            maxPacketLoss: 5
         )
         controller?.onLevelStructureChanged?()
         
@@ -59,7 +62,7 @@ class Scenario1Manager: ObservableObject {
         // DAY 2: Tambah Email Server (Biru)
         controller?.allowedPackets = [.video, .email]
         controller?.currentLevel.servers.append(
-            ServerData(position: CGPoint(x: 0.85, y: 0.75), acceptedType: .email) // Tambah BOTTOM Server
+            ServerData(name: "EMAIL SERVER", position: CGPoint(x: 0.85, y: 0.75), acceptedType: .email)
         )
         controller?.onLevelStructureChanged?() // Gambar ulang layar agar server biru muncul
         

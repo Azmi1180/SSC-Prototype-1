@@ -60,34 +60,85 @@ struct GamePlayView: View {
                         .position(x: server.position.x * geo.size.width, y: server.position.y * geo.size.height)
                 }
                 
-                // LAYER 3: HUD (Beserta Tombol Keluar)
+                // LAYER 3: HUD (Score, Timer, Packet Loss, Legend)
                 VStack {
-                    HStack {
-                        Button(action: { controller.exitToMenu() }) {
-                            Image(systemName: "stop.circle.fill").font(.title2).foregroundColor(.red)
+                    // --- TOP HUD (Tombol Exit, Day, Score, Packet Loss) ---
+                    HStack(alignment: .top) {
+                        // Kiri: Exit & Info Hari
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 12) {
+                                Button(action: { controller.exitToMenu() }) {
+                                    Image(systemName: "stop.circle.fill").font(.title).foregroundColor(.red)
+                                }
+                                
+                                HStack(spacing: 8) {
+                                    Text("DAY \(controller.scenario1.currentDay)")
+                                        .fontWeight(.black).foregroundColor(.cyan)
+                                    Text(String(format: "0:%02d", controller.scenario1.timeRemaining))
+                                        .foregroundColor(.white)
+                                }
+                                .font(.system(.headline, design: .monospaced))
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .background(Color.black.opacity(0.8))
+                                .cornerRadius(6)
+                            }
+                            
+                            // KOTAK PACKET LOSS BARU
+                            HStack(spacing: 8) {
+                                Text("PACKET LOSS")
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.7))
+                                
+                                // Indikator Titik-Titik Merah
+                                HStack(spacing: 4) {
+                                    ForEach(0..<controller.currentLevel.maxPacketLoss, id: \.self) { index in
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(index < controller.currentPacketLoss ? Color.red : Color.white.opacity(0.2))
+                                            .frame(width: 12, height: 6)
+                                            // Efek kedip kalau hilang banyak
+                                            .shadow(color: index < controller.currentPacketLoss ? .red : .clear, radius: 4)
+                                    }
+                                }
+                            }
+                            .padding(8)
+                            .background(Color.black.opacity(0.6))
+                            .cornerRadius(6)
                         }
-                        
-                        // DAY & TIMER INDICATOR
-                        HStack(spacing: 8) {
-                            Text("DAY \(controller.scenario1.currentDay)")
-                                .fontWeight(.black)
-                                .foregroundColor(.cyan)
-                            Text(String(format: "0:%02d", controller.scenario1.timeRemaining))
-                                .foregroundColor(.white)
-                        }
-                        .font(.system(.headline, design: .monospaced))
-                        .padding(8)
-                        .background(Color.black)
-                        .cornerRadius(4)
                         
                         Spacer()
                         
-                        Text("SCORE: \(controller.score)")
-                            .font(.system(.title, design: .monospaced, weight: .bold))
-                            .foregroundColor(.white)
+                        // Kanan: Score Total
+                        VStack(alignment: .trailing) {
+                            Text("SCORE")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.5))
+                            Text("\(controller.score)")
+                                .font(.system(.title2, design: .monospaced, weight: .black))
+                                .foregroundColor(.white)
+                        }
+                        .padding(12)
+                        .background(Color.black.opacity(0.8))
+                        .cornerRadius(8)
                     }
                     .padding()
+                    
                     Spacer()
+                    
+                    // --- BOTTOM HUD (Legend / Panduan Warna) ---
+                    // Hanya muncul jika menu logic tidak terbuka
+                    if !controller.showLogicMenu {
+                        HStack(spacing: 20) {
+                            LegendItem(color: Color(red: 1.0, green: 0.0, blue: 0.33), label: "VIDEO")
+                            LegendItem(color: Color(red: 0.0, green: 1.0, blue: 0.8), label: "EMAIL")
+                            LegendItem(color: Color(red: 0.22, green: 1.0, blue: 0.08), label: "MALWARE")
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(20)
+                        .padding(.bottom, 20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
                 .zIndex(2)
                 
@@ -153,6 +204,32 @@ struct GamePlayView: View {
                 }
 
             }
+        }
+    }
+}
+
+
+struct LegendItem: View {
+    var color: Color
+    var label: String
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            // Gambar Diamond (Data Packet)
+            ZStack {
+                Rectangle()
+                    .stroke(color.opacity(0.8), lineWidth: 1.5)
+                    .frame(width: 10, height: 10)
+                Rectangle()
+                    .fill(color)
+                    .frame(width: 4, height: 4)
+            }
+            .rotationEffect(.degrees(45))
+            .shadow(color: color, radius: 3)
+            
+            Text(label)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(.white.opacity(0.8))
         }
     }
 }

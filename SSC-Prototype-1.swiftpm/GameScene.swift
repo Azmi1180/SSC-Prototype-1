@@ -9,61 +9,33 @@ import SpriteKit
 
 class GameScene: SKScene {
     weak var gameController: GameController?
-    
-    // Karena dinamis, kita simpan dalam bentuk array/dictionary
+        
     var sources: [SKShapeNode] = []
-    var routers: [UUID: RouterNode] = [:] // Pakai dictionary agar mudah dicari berdasarkan ID
+    var routers: [UUID: RouterNode] = [:]
     var servers: [DestinationNode] = []
+    
+    // Variabel untuk Drag & Drop Kabel
+    private var activeDragLine: SKShapeNode?
+    private var activeStartNode: SKNode?
     
     override func didMove(to view: SKView) {
         backgroundColor = GameTheme.darkerBase
         
-        // 1. Sync Logic dari Controller ke Router Spesifik
         gameController?.onRulesChanged = { [weak self] routerID, newRules in
             self?.routers[routerID]?.rules = newRules
-            print("Router [\(routerID.uuidString.prefix(4))] Memory Updated: \(newRules.count) instructions.")
-        }
-        // EVENT: THE FLIP (Server pindah posisi fisik di SpriteKit)
-        gameController?.onServersSwapped = { [weak self] in
-            guard let self = self, let levelData = self.gameController?.currentLevel else { return }
-            
-            for (index, serverData) in levelData.servers.enumerated() {
-                if index < self.servers.count {
-                    let node = self.servers[index]
-                    let newPos = self.skPosition(for: serverData.position)
-                    // Gerakkan hitbox fisiknya mengikuti UI
-                    node.run(SKAction.move(to: newPos, duration: 2.0))
-                }
-            }
         }
         
-        // TAMBAHKAN INI: Listener jika level berubah (misal Server baru muncul)
         gameController?.onLevelStructureChanged = { [weak self] in
             if let levelData = self?.gameController?.currentLevel {
                 self?.loadLevel(levelData: levelData)
             }
         }
-            
         
-        // 2. Load Level Dinamis dari Controller
         if let levelData = gameController?.currentLevel {
             loadLevel(levelData: levelData)
         }
-        
-        
-        
         startSpawning()
     }
-    
-//    override func update(_ currentTime: TimeInterval) {
-//        guard let controller = gameController else { return }
-//                
-//        let shouldPause = controller.showLogicMenu || controller.isPausedForDialogue
-//        
-//        if self.isPaused != shouldPause {
-//            self.isPaused = shouldPause
-//        }
-//    }
     
     // MARK: - LEVEL LOADER
     func loadLevel(levelData: LevelData) {
@@ -72,44 +44,42 @@ class GameScene: SKScene {
         routers.removeAll()
         servers.removeAll()
         
-        // 1. Setup Sources (Clients)
+        // 1. Setup Clients
         for client in levelData.clients {
             let sourceNode = ClientNode()
             sourceNode.position = skPosition(for: client.position)
+            // Simpan Data Tipe dan ID agar bisa divalidasi saat ditarik
+            sourceNode.userData = ["id": client.id, "type": "client"]
             addChild(sourceNode)
             sources.append(sourceNode)
         }
         
-        // 2. Setup Routers (Invisible Nodes)
+        // 2. Setup Routers
         for routerData in levelData.routers {
-            let rNode = RouterNode(radius: 40) // Area hitbox
+            let rNode = RouterNode(radius: 40)
             rNode.position = skPosition(for: routerData.position)
             rNode.rules = routerData.rules
-            rNode.name = "Router_\(routerData.id)"
-            
-            // Simpan ID agar bisa di-sync dengan SwiftUI
-            rNode.userData = ["id": routerData.id]
-            
+            rNode.userData = ["id": routerData.id, "type": "router"] // Penting untuk validasi
             addChild(rNode)
             routers[routerData.id] = rNode
         }
         
-        // 3. Setup Servers (Destinations)
+        // 3. Setup Servers
         for serverData in levelData.servers {
             let sNode = DestinationNode(type: serverData.acceptedType, id: serverData.id)
             sNode.position = skPosition(for: serverData.position)
+            sNode.userData = ["id": serverData.id, "type": "server"] // Penting untuk validasi
             addChild(sNode)
             servers.append(sNode)
         }
-        // 4. Draw Tracks (Menggambar jalur secara dinamis)
-        // Hubungkan semua source ke router terdekat (Untuk prototype, hubungkan ke router pertama)
-        if let firstRouter = routers.values.first {
-            for source in sources {
-                drawTrack(from: source.position, to: firstRouter.position)
-            }
-            // Hubungkan router ke semua server
-            for server in servers {
-                drawTrack(from: firstRouter.position, to: server.position)
+        
+        // 4. Gambar Kabel yang sudah terpasang (Berdasarkan data GameController)
+        for connection in levelData.connections {
+            // Cari posisi node awal dan akhir
+            let startPos = getPosition(for: connection.fromID)
+            let endPos = getPosition(for: connection.toID)
+            if startPos != .zero && endPos != .zero {
+                drawTrack(from: startPos, to: endPos, isTemporary: false)
             }
         }
     }
@@ -148,11 +118,116 @@ class GameScene: SKScene {
         
         run(SKAction.repeatForever(SKAction.sequence([wait, loop])))
     }
+    func getPosition(for id: UUID) -> CGPoint {
+        if let node = sources.first(where: { $0.userData?["id"] as? UUID == id }) { return node.position }
+        if let node = routers[id] { return node.position }
+        if let node = servers.first(where: { $0.userData?["id"] as? UUID == id }) { return node.position }
+        return .zero
+    }
+    
+    
+    // MARK: - DRAG & DROP CABLES LOGIC
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+        
+        // Cek apakah pemain menyentuh Client atau Router
+        let touchedNodes = nodes(at: location)
+        if let startNode = touchedNodes.first(where: { $0.userData?["type"] != nil }) {
+            let type = startNode.userData?["type"] as? String
+            
+            // Server tidak bisa jadi titik awal tarik kabel
+            if type == "server" { return }
+            
+            activeStartNode = startNode
+            
+            // Buat garis sementara yang mengikuti jari
+            activeDragLine = SKShapeNode()
+            activeDragLine?.strokeColor = GameTheme.neonCyan
+            activeDragLine?.lineWidth = 3
+            activeDragLine?.glowWidth = 2
+            activeDragLine?.zPosition = -5
+            addChild(activeDragLine!)
+        }
+    }
+    
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first, let startNode = activeStartNode, let line = activeDragLine else { return }
+        let location = touch.location(in: self)
+        
+        // Update gambar garis dari startNode ke jari pemain
+        let path = CGMutablePath()
+        path.move(to: startNode.position)
+        path.addLine(to: location)
+        line.path = path
+    }
+    
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first, let startNode = activeStartNode else { return }
+        let location = touch.location(in: self)
+        let endNodes = nodes(at: location)
+        
+        // Hapus garis sementara
+        activeDragLine?.removeFromParent()
+        activeDragLine = nil
+        
+        // Ambil node target tempat jari dilepas
+        if let targetNode = endNodes.first(where: { $0.userData?["type"] != nil && $0 != startNode }) {
+            
+            let startType = startNode.userData?["type"] as? String
+            let targetType = targetNode.userData?["type"] as? String
+            
+            let startID = startNode.userData?["id"] as? UUID
+            let targetID = targetNode.userData?["id"] as? UUID
+            
+            // VALIDASI ATURAN KABEL (Penting!)
+            var isValid = false
+            if startType == "client" && targetType == "router" { isValid = true }
+            if startType == "router" && targetType == "server" { isValid = true }
+            
+            if isValid, let sID = startID, let tID = targetID {
+                // Berhasil! Simpan kabel ke Controller
+                gameController?.addConnection(from: sID, to: tID)
+                
+                // Animasi Sukses
+                let flash = SKShapeNode(circleOfRadius: 30)
+                flash.position = targetNode.position
+                flash.fillColor = GameTheme.neonCyan
+                addChild(flash)
+                flash.run(SKAction.sequence([SKAction.fadeOut(withDuration: 0.3), SKAction.removeFromParent()]))
+            } else {
+                // Gagal: Aturan dilanggar (misal Client ke Server langsung)
+                showErrorShake(at: targetNode.position)
+            }
+        }
+        else if let routerNode = startNode as? RouterNode, endNodes.contains(routerNode) {
+            // Jari dilepas di tempat yang sama (Klik biasa, BUKAN ditarik)
+            // Buka Logic Menu
+            if let rID = routerNode.userData?["id"] as? UUID {
+                gameController?.selectRouter(id: rID)
+            }
+        }
+        
+        activeStartNode = nil
+    }
+    func showErrorShake(at position: CGPoint) {
+        let errorDot = SKShapeNode(circleOfRadius: 10)
+        errorDot.position = position
+        errorDot.fillColor = GameTheme.neonPink
+        addChild(errorDot)
+        
+        let shake = SKAction.sequence([
+            SKAction.moveBy(x: -5, y: 0, duration: 0.05),
+            SKAction.moveBy(x: 10, y: 0, duration: 0.05),
+            SKAction.moveBy(x: -5, y: 0, duration: 0.05)
+        ])
+        errorDot.run(SKAction.sequence([SKAction.repeat(shake, count: 2), SKAction.fadeOut(withDuration: 0.2), SKAction.removeFromParent()]))
+    }
     
     func spawnPacket() {
         guard let source = sources.randomElement(),
-                      let targetRouter = routers.values.first,
-                      let allowed = gameController?.allowedPackets else { return }
+              let allowed = gameController?.allowedPackets,
+              let sourceID = source.userData?["id"] as? UUID else { return }
         
         guard let type = allowed.randomElement() else { return }
         
@@ -160,22 +235,29 @@ class GameScene: SKScene {
         packet.position = source.position
         addChild(packet)
         
-        // Move to Router
-        let distance = hypot(targetRouter.position.x - source.position.x, targetRouter.position.y - source.position.y)
-        let duration = distance / type.speed
+        let connection = gameController?.currentLevel.connections.first(where: { $0.fromID == sourceID })
         
-        let move = SKAction.move(to: targetRouter.position, duration: duration)
-        let decide = SKAction.run { [weak self] in
-            self?.processPacketAtRouter(packet, router: targetRouter)
+        if let connectedRouterID = connection?.toID, let targetRouter = routers[connectedRouterID] {
+            
+            let distance = hypot(targetRouter.position.x - source.position.x, targetRouter.position.y - source.position.y)
+            let move = SKAction.move(to: targetRouter.position, duration: distance / type.speed)
+            let decide = SKAction.run { [weak self] in self?.processPacketAtRouter(packet, router: targetRouter) }
+            packet.run(SKAction.sequence([move, decide]))
+        } else {
+            let drop = SKAction.sequence([
+                SKAction.scale(to: 0, duration: 0.3),
+                SKAction.removeFromParent()
+            ])
+            packet.run(drop)
         }
-        
-        packet.run(SKAction.sequence([move, decide]))
     }
+
 
     // MARK: - ROUTING LOGIC
     func processPacketAtRouter(_ packet: PacketNode, router: RouterNode) {
-        var selectedAction: RouterAction? = nil
+        guard let routerID = router.userData?["id"] as? UUID else { return }
         
+        var selectedAction: RouterAction? = nil
         for rule in router.rules {
             if rule.conditionColor == packet.type {
                 selectedAction = rule.action
@@ -183,35 +265,49 @@ class GameScene: SKScene {
             }
         }
         
-        // Default Fallback
         if selectedAction == nil {
-            selectedAction = Bool.random() ? .sendTop : .sendBottom
+            // Jalankan animasi drop
+            packet.run(SKAction.sequence([
+                SKAction.scale(to: 0, duration: 0.2),
+                SKAction.removeFromParent()
+            ]))
+                        
+            gameController?.triggerPacketLoss()
+            
+            return
         }
         
-        // Execute Action
+        // Cari Server yang KONEK dengan Router ini
+        let connectedServerIDs = gameController?.currentLevel.connections.filter({ $0.fromID == routerID }).map({ $0.toID }) ?? []
+        
         switch selectedAction! {
-        case .drop:
-            let shrink = SKAction.scale(to: 0.0, duration: 0.2)
-            let remove = SKAction.removeFromParent()
-            packet.run(SKAction.sequence([shrink, remove]))
-            
-            if packet.type == .malware {
-                gameController?.score += 5
-            } else {
-                gameController?.score -= 5
-            }
-            
-        case .sendTop:
-            // Karena dinamis, "Top" kita asumsikan mencari server Video
-            if let dest = servers.first(where: { $0.acceptedType == .video }) {
-                movePacket(packet, to: dest)
-            } else { packet.removeFromParent() }
-            
-        case .sendBottom:
-            // "Bottom" kita asumsikan mencari server Email
-            if let dest = servers.first(where: { $0.acceptedType == .email }) {
-                movePacket(packet, to: dest)
-            } else { packet.removeFromParent() }
+            case .drop:
+                packet.run(SKAction.sequence([SKAction.scale(to: 0, duration: 0.2), SKAction.removeFromParent()]))
+                if packet.type == .malware {
+                    gameController?.score += 5
+                } else {
+                    gameController?.score -= 5
+                    gameController?.triggerPacketLoss()
+                }
+            case .forward(let targetID,  _) :// 
+                let hasCable = gameController?.currentLevel.connections.contains(where: {
+                    $0.fromID == routerID && $0.toID == targetID
+                }) ?? false
+                
+                if hasCable {
+                    if let destServer = servers.first(where: { $0.userData?["id"] as? UUID == targetID }) {
+                        movePacket(packet, to: destServer)
+                        
+                    } else if let destRouter = routers[targetID] {
+                        movePacket(packet, to: destRouter)
+                        
+                    } else {
+                        packet.removeFromParent()
+                    }
+                } else {
+                    packet.run(SKAction.sequence([SKAction.scale(to: 0, duration: 0.2), SKAction.removeFromParent()]))
+                    gameController?.triggerPacketLoss()
+                }
         }
     }
     
@@ -230,15 +326,17 @@ class GameScene: SKScene {
         guard let server = target as? DestinationNode else { return }
         
         if packet.type == .malware {
-            gameController?.score -= 50
+            gameController?.score -= 30
+            gameController?.triggerPacketLoss()
             gameController?.serverAnimationTrigger = server.serverID
         }
         else if packet.type == server.acceptedType {
-            gameController?.score += 10
+            gameController?.score += 10            
             gameController?.serverAnimationTrigger = server.serverID
         }
         else {
-            gameController?.score -= 10            
+            gameController?.score -= 10
+            gameController?.triggerPacketLoss()
             gameController?.serverAnimationTrigger = server.serverID
         }
         
@@ -246,13 +344,13 @@ class GameScene: SKScene {
     }
     
     // MARK: - VISUALS
-    func drawTrack(from: CGPoint, to: CGPoint) {
+    func drawTrack(from: CGPoint, to: CGPoint, isTemporary: Bool) {
         let path = CGMutablePath()
         path.move(to: from)
         path.addLine(to: to)
         let line = SKShapeNode(path: path)
-        line.strokeColor = SKColor.white.withAlphaComponent(0.1)
-        line.lineWidth = 2
+        line.strokeColor = SKColor.white.withAlphaComponent(0.2)
+        line.lineWidth = 4
         line.zPosition = -10
         addChild(line)
     }

@@ -11,11 +11,25 @@ struct LogicMenu: View {
     @ObservedObject var controller: GameController
 
     @State private var selectedColor: PacketType = .video
-    @State private var selectedAction: RouterAction = .sendTop
-
+    @State private var selectedAction: RouterAction = .drop
+    
     // MARK: - Helpers
     private var isMemoryFull: Bool { controller.activeRules.count >= 3 }
     private var memoryUsage: Double { Double(controller.activeRules.count) / 3.0 }
+    
+    private var availableActions: [RouterAction] {
+        var actions: [RouterAction] = [.drop]
+            
+        for server in controller.currentLevel.servers {
+            actions.append(.forward(to: server.id, name: server.name))
+        }
+            
+        for router in controller.currentLevel.routers where router.id != controller.selectedRouterID {
+            actions.append(.forward(to: router.id, name: router.name))
+        }
+        
+        return actions
+    }
 
     var body: some View {
         ZStack {
@@ -213,7 +227,7 @@ struct LogicMenu: View {
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundColor(.white.opacity(0.25))
 
-                            Text(rule.action.rawValue)
+                            Text(rule.action.displayString)
                                 .font(.system(.caption, design: .monospaced, weight: .bold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 9)
@@ -297,11 +311,11 @@ struct LogicMenu: View {
                             .foregroundColor(.white.opacity(0.5))
                     }
                     Picker("", selection: $selectedAction) {
-                        Text("SEND TOP").tag(RouterAction.sendTop)
-                        Text("SEND BTM").tag(RouterAction.sendBottom)
-                        Text("DROP").tag(RouterAction.drop)
+                        ForEach(availableActions, id: \.self) { action in
+                            Text(action.displayString).tag(action)
+                        }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                 }
             }
             .padding(.horizontal, 24)
@@ -331,7 +345,7 @@ struct LogicMenu: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.white.opacity(0.3))
 
-                Text(selectedAction.rawValue)
+                Text(selectedAction.displayString)
                     .font(.system(.caption, design: .monospaced, weight: .bold))
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)

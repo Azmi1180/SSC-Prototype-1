@@ -183,10 +183,16 @@ class ClientNode: SKShapeNode {
 }
 
 // MARK: - SHARED MODELS
-enum RouterAction: String, CaseIterable {
-    case sendTop = "SEND TOP"
-    case sendBottom = "SEND BTM"
-    case drop = "DROP"
+enum RouterAction: Hashable {
+    case drop
+    case forward(to: UUID, name: String)
+        
+    var displayString: String {
+        switch self {
+        case .drop: return "DROP (FIREWALL)"
+        case .forward(_, let name): return "SEND TO: \(name)"
+        }
+    }
 }
 
 struct LogicRule: Identifiable, Hashable {
