@@ -153,6 +153,35 @@ class DestinationNode: SKShapeNode {
     required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
+// MARK: - 4. CLIENT / USER NODE (Source)
+class ClientNode: SKShapeNode {
+    override init() {
+        super.init()
+             
+        let rect = CGRect(x: -25, y: -25, width: 50, height: 50)
+        self.path = CGPath(roundedRect: rect, cornerWidth: 12, cornerHeight: 12, transform: nil)
+        
+        self.fillColor = GameTheme.darkerBase
+        self.strokeColor = .white
+        self.lineWidth = 2
+                
+        let label = SKLabelNode(text: "USER")
+        label.fontName = "Menlo-Bold"
+        label.fontSize = 14
+        label.fontColor = .white
+        label.verticalAlignmentMode = .center
+        addChild(label)
+        
+        let glow = SKShapeNode(path: self.path!)
+        glow.strokeColor = .white
+        glow.lineWidth = 4
+        glow.alpha = 0.2
+        addChild(glow)
+    }
+    
+    required init?(coder aDecoder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
 // MARK: - SHARED MODELS
 enum RouterAction: String, CaseIterable {
     case sendTop = "SEND TOP"
