@@ -46,10 +46,11 @@ struct LevelData {
 
 // MARK: - GAME CONTROLLER
 
+@MainActor
 class GameController: ObservableObject {
     // Navigasi & Progress
     @Published var appState: AppState = .mainMenu
-    @Published var unlockedScenarios: Int = 1    
+    @Published var unlockedScenarios: Int = 1
     
     // In-Game State
     @Published var score: Int = 0
@@ -60,6 +61,7 @@ class GameController: ObservableObject {
     @Published var serverAnimationTrigger: UUID? = nil
     
     @Published var scenario1: Scenario1Manager!
+    @Published var allowedPackets: [PacketType] = [.video]
     
     @Published var dialogueMessage: String? = nil
     @Published var isPausedForDialogue: Bool = false
@@ -67,6 +69,7 @@ class GameController: ObservableObject {
     
     var onRulesChanged: ((UUID, [LogicRule]) -> Void)?
     var onServersSwapped: (() -> Void)?
+    var onLevelStructureChanged: (() -> Void)?
 
     func showDialogue(_ message: String, onDismiss: (() -> Void)? = nil) {
         self.dialogueMessage = message
@@ -125,7 +128,7 @@ class GameController: ObservableObject {
         
     }
         
-    func loadScenario(index: Int) {
+    @MainActor func loadScenario(index: Int) {
             self.score = 0
             self.activeRules.removeAll()
             
@@ -180,3 +183,4 @@ class GameController: ObservableObject {
         onRulesChanged?(routerID, activeRules)
     }
 }
+

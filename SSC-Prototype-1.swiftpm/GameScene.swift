@@ -36,6 +36,13 @@ class GameScene: SKScene {
                 }
             }
         }
+        
+        // TAMBAHKAN INI: Listener jika level berubah (misal Server baru muncul)
+        gameController?.onLevelStructureChanged = { [weak self] in
+            if let levelData = self?.gameController?.currentLevel {
+                self?.loadLevel(levelData: levelData)
+            }
+        }
             
         
         // 2. Load Level Dinamis dari Controller
@@ -67,10 +74,8 @@ class GameScene: SKScene {
         
         // 1. Setup Sources (Clients)
         for client in levelData.clients {
-            let sourceNode = SKShapeNode(circleOfRadius: 8)
+            let sourceNode = ClientNode()
             sourceNode.position = skPosition(for: client.position)
-            sourceNode.fillColor = .white
-            sourceNode.alpha = 0.2
             addChild(sourceNode)
             sources.append(sourceNode)
         }
@@ -146,9 +151,10 @@ class GameScene: SKScene {
     
     func spawnPacket() {
         guard let source = sources.randomElement(),
-              let targetRouter = routers.values.first else { return }
+                      let targetRouter = routers.values.first,
+                      let allowed = gameController?.allowedPackets else { return }
         
-        let type: PacketType = [.video, .email, .malware].randomElement()!
+        guard let type = allowed.randomElement() else { return }
         
         let packet = PacketNode(type: type)
         packet.position = source.position
