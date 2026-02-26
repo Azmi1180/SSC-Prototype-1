@@ -23,14 +23,40 @@ class GameScene: SKScene {
             self?.routers[routerID]?.rules = newRules
             print("Router [\(routerID.uuidString.prefix(4))] Memory Updated: \(newRules.count) instructions.")
         }
+        // EVENT: THE FLIP (Server pindah posisi fisik di SpriteKit)
+        gameController?.onServersSwapped = { [weak self] in
+            guard let self = self, let levelData = self.gameController?.currentLevel else { return }
+            
+            for (index, serverData) in levelData.servers.enumerated() {
+                if index < self.servers.count {
+                    let node = self.servers[index]
+                    let newPos = self.skPosition(for: serverData.position)
+                    // Gerakkan hitbox fisiknya mengikuti UI
+                    node.run(SKAction.move(to: newPos, duration: 2.0))
+                }
+            }
+        }
+            
         
         // 2. Load Level Dinamis dari Controller
         if let levelData = gameController?.currentLevel {
             loadLevel(levelData: levelData)
         }
         
+        
+        
         startSpawning()
     }
+    
+//    override func update(_ currentTime: TimeInterval) {
+//        guard let controller = gameController else { return }
+//                
+//        let shouldPause = controller.showLogicMenu || controller.isPausedForDialogue
+//        
+//        if self.isPaused != shouldPause {
+//            self.isPaused = shouldPause
+//        }
+//    }
     
     // MARK: - LEVEL LOADER
     func loadLevel(levelData: LevelData) {
@@ -92,9 +118,30 @@ class GameScene: SKScene {
     
     // MARK: - SPAWNING LOGIC
     func startSpawning() {
-        let wait = SKAction.wait(forDuration: 1.5)
-        let spawn = SKAction.run { [weak self] in self?.spawnPacket() }
-        run(SKAction.repeatForever(SKAction.sequence([wait, spawn])))
+        let spawnLogic = SKAction.run { [weak self] in
+            guard let self = self, let controller = self.gameController else { return }
+            
+            // Jangan spawn kalau lagi dialog atau menu kebuka
+            if !controller.isPausedForDialogue && !controller.showLogicMenu {
+                self.spawnPacket()
+            }
+        }
+        
+        // Kita cek setiap 0.1 detik apakah sudah saatnya spawn berdasarkan spawnRate
+        let wait = SKAction.wait(forDuration: 0.1)
+        var timeSinceLastSpawn: TimeInterval = 0
+        
+        let loop = SKAction.customAction(withDuration: 0.1) { [weak self] _, _ in
+            guard let self = self, let controller = self.gameController else { return }
+            
+            timeSinceLastSpawn += 0.1
+            if timeSinceLastSpawn >= controller.scenario1.spawnRate {
+                timeSinceLastSpawn = 0
+                self.run(spawnLogic)
+            }
+        }
+        
+        run(SKAction.repeatForever(SKAction.sequence([wait, loop])))
     }
     
     func spawnPacket() {

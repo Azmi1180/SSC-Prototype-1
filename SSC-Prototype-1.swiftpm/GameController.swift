@@ -49,7 +49,7 @@ struct LevelData {
 class GameController: ObservableObject {
     // Navigasi & Progress
     @Published var appState: AppState = .mainMenu
-    @Published var unlockedScenarios: Int = 1 // Berapa level yang sudah terbuka
+    @Published var unlockedScenarios: Int = 1    
     
     // In-Game State
     @Published var score: Int = 0
@@ -58,8 +58,30 @@ class GameController: ObservableObject {
     @Published var selectedRouterID: UUID? = nil
     @Published var activeRules: [LogicRule] = []
     @Published var serverAnimationTrigger: UUID? = nil
+    
+    @Published var scenario1: Scenario1Manager!
+    
+    @Published var dialogueMessage: String? = nil
+    @Published var isPausedForDialogue: Bool = false
+    private var onDialogueDismissed: (() -> Void)? = nil
+    
     var onRulesChanged: ((UUID, [LogicRule]) -> Void)?
+    var onServersSwapped: (() -> Void)?
 
+    func showDialogue(_ message: String, onDismiss: (() -> Void)? = nil) {
+        self.dialogueMessage = message
+        self.isPausedForDialogue = true
+        self.onDialogueDismissed = onDismiss
+    }
+    
+    func dismissDialogue() {
+        self.dialogueMessage = nil
+        self.isPausedForDialogue = false
+        self.onDialogueDismissed?()
+        self.onDialogueDismissed = nil
+    }
+    
+    
     // Database Skenario (Level)
     static let allScenarios: [LevelData] = [
         // SCENARIO 1
@@ -99,15 +121,20 @@ class GameController: ObservableObject {
     init() {
         // Set awal ke level 1
         self.currentLevel = GameController.allScenarios[0]
+        self.scenario1 = Scenario1Manager(controller: self)
+        
     }
-    
-    // MARK: - NAVIGATION LOGIC
+        
     func loadScenario(index: Int) {
-        self.currentLevel = GameController.allScenarios[index]
-        self.score = 0
-        self.activeRules.removeAll() // Reset aturan lama
-        self.appState = .playing     // Masuk ke game
-    }
+            self.score = 0
+            self.activeRules.removeAll()
+            
+            if index == 0 {
+                scenario1.startGame()
+            }
+            
+            self.appState = .playing
+        }
     
     func exitToMenu() {
         self.appState = .scenarioSelect

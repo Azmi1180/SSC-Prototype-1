@@ -44,6 +44,8 @@ struct GamePlayView: View {
                 // LAYER 1: GAME WORLD (SpriteKit)
                 SpriteView(scene: scene, isPaused: controller.showLogicMenu)
                     .ignoresSafeArea()
+//                SpriteView(scene: scene)
+//                    .ignoresSafeArea()
                 
                 // LAYER 2: DYNAMIC ENTITIES (Routers & Servers)
                 ForEach(controller.currentLevel.routers) { router in
@@ -61,28 +63,27 @@ struct GamePlayView: View {
                 // LAYER 3: HUD (Beserta Tombol Keluar)
                 VStack {
                     HStack {
-                        // Tombol Keluar ke Menu
                         Button(action: { controller.exitToMenu() }) {
-                            Image(systemName: "stop.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.red)
+                            Image(systemName: "stop.circle.fill").font(.title2).foregroundColor(.red)
                         }
                         
-                        HStack(spacing: 6) {
-                            Image(systemName: "cpu")
-                            Text("RULES: \(controller.activeRules.count)/3")
+                        // DAY & TIMER INDICATOR
+                        HStack(spacing: 8) {
+                            Text("DAY \(controller.scenario1.currentDay)")
+                                .fontWeight(.black)
+                                .foregroundColor(.cyan)
+                            Text(String(format: "0:%02d", controller.scenario1.timeRemaining))
+                                .foregroundColor(.white)
                         }
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(.headline, design: .monospaced))
                         .padding(8)
-                        .background(Color.black.opacity(0.8))
-                        .foregroundColor(.yellow)
+                        .background(Color.black)
                         .cornerRadius(4)
                         
                         Spacer()
                         
                         Text("SCORE: \(controller.score)")
-                            .font(.system(.title, design: .monospaced))
-                            .fontWeight(.bold)
+                            .font(.system(.title, design: .monospaced, weight: .bold))
                             .foregroundColor(.white)
                     }
                     .padding()
@@ -101,6 +102,56 @@ struct GamePlayView: View {
                     }
                     .zIndex(100)
                 }
+                // MARK: - LAYER 5: DIALOGUE BOX (Pesan dari Bos)
+                
+                if let messageText = controller.dialogueMessage {
+                    ZStack {
+                        Color.black.opacity(0.8).ignoresSafeArea() // Gelapkan layar
+                        
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Image(systemName: "envelope.badge.fill").foregroundColor(.cyan)
+                                Text("INCOMING TRANSMISSION...").font(.caption.bold())
+                                    .foregroundColor(.cyan)
+                            }
+                            
+                            // GUNAKAN 'messageText' DI SINI (jangan nama 'message' karena bisa bentrok)
+                            Text(messageText)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.leading)
+                            
+                            // Tombol Acknowledge menggunakan onTapGesture
+                            Text("ACKNOWLEDGE")
+                                .font(.system(.subheadline, design: .monospaced, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.cyan)
+                                .foregroundColor(.black)
+                                .cornerRadius(8)
+                                .contentShape(Rectangle()) // Memastikan seluruh area bisa diklik
+                                .onTapGesture {
+                                    // Beri haptic feedback instan
+                                    UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                                    
+                                    // Tutup dialog tanpa animasi berlebihan yang bikin ngelag
+                                    withAnimation(.easeOut(duration: 0.15)) {
+                                        controller.dismissDialogue()
+                                    }
+                                }
+                                .padding(.top, 10)
+                        }
+                        .padding(24)
+                        .background(Color(white: 0.1))
+                        .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.cyan, lineWidth: 2))
+                        .frame(width: 320)
+                        .shadow(color: .cyan.opacity(0.3), radius: 20)
+                    }
+                    .zIndex(200) // Paling atas
+                    .transition(.scale.combined(with: .opacity))
+                }
+
             }
         }
     }
