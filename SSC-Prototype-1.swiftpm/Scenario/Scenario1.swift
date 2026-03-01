@@ -9,13 +9,21 @@
 import SwiftUI
 import Combine
 
+enum ScenarioTooltip {
+    case none
+    case dragCableClientToRouter
+    case dragCableRouterToServer
+    case configureRouter
+}
+
 @MainActor
 class Scenario1Manager: ObservableObject {
     weak var controller: GameController?
     
+    @Published var activeTooltip: ScenarioTooltip = .none
     @Published var currentDay: Int = 1
-    @Published var timeRemaining: Int = 20 // 20 detik per hari agar tidak bosan
-    @Published var spawnRate: TimeInterval = 2.5
+    @Published var timeRemaining: Int = 20
+    @Published var spawnRate: TimeInterval = 3.0
     
     private var timer: AnyCancellable?
     
@@ -27,46 +35,86 @@ class Scenario1Manager: ObservableObject {
         startDay1()
     }
     
-    // MARK: - PROGRESSION LOGIC
-    
+    // MARK: - DAY 1 LOGIC
     func startDay1() {
         currentDay = 1
         timeRemaining = 20
-        spawnRate = 3.0                
-        controller?.currentPacketLoss = 0
-
-        // DAY 1: Hanya ada 1 Server (Video/Merah)
+        spawnRate = 3.0
+                
+        activeTooltip = .none
         controller?.allowedPackets = [.video]
+                
         controller?.currentLevel = LevelData(
             id: 1, title: "SCENARIO 01", subtitle: "The Localhost",
             clients: [ ClientData(position: CGPoint(x: 0.15, y: 0.5)) ],
-            routers: [ RouterData(name: "ROUTER 01", position: CGPoint(x: 0.5, y: 0.5)) ],
-            servers: [
-                ServerData(name: "VIDEO SERVER", position: CGPoint(x: 0.85, y: 0.25), acceptedType: .video)
-            ],
+            routers: [ RouterData(name: "MAIN_ROUTER", position: CGPoint(x: 0.5, y: 0.5)) ],
+            servers: [ ServerData(name: "VIDEO SERVER", position: CGPoint(x: 0.85, y: 0.25), acceptedType: .video) ],
             connections: [],
             maxPacketLoss: 5
         )
+                
         controller?.onLevelStructureChanged?()
+                
+        controller?.showDialogue("DAY 1: ONBOARDING\n\nWelcome to the job.\n\nFirst, we need physical infrastructure. Drag a cable from the USER to the ROUTER.") { [weak self] in
+            
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                            self?.activeTooltip = .dragCableClientToRouter
+
+                            self?.controller?.objectWillChange.send()
+                        }
+                    }
+                }
+    }
+    
+    // MARK: - PROGRESSION CHECKS (Dipanggil dari GameScene & GameController)
+    
+    // Fungsi ini dipanggil saat pemain berhasil menarik kabel
+    func checkCableProgress() {
+        guard currentDay == 1 else { return }
+        let connections = controller?.currentLevel.connections.count ?? 0
         
-        controller?.showDialogue("DAY 1: ONBOARDING\nWelcome to the job.\n\nThe User wants to watch a video. See that Red Packet? Configure the router to send RED packets to the TOP server.") { [weak self] in
-            self?.startTimer()
+        if connections == 1 && activeTooltip == .dragCableClientToRouter {
+            // Kabel 1 selesai, lanjut minta Kabel 2
+            withAnimation {
+                activeTooltip = .dragCableRouterToServer
+                controller?.objectWillChange.send()
+            }
+        }
+        else if connections == 2 && activeTooltip == .dragCableRouterToServer {
+            // Kabel 2 selesai, lanjut minta Configure Router
+            withAnimation {
+                activeTooltip = .configureRouter
+                controller?.objectWillChange.send()
+            }
+            startTimer()
         }
     }
     
+    // Fungsi ini dipanggil saat pemain mengklik Router
+    func checkRouterClicked() {
+        if activeTooltip == .configureRouter {
+            withAnimation {
+                activeTooltip = .none
+                controller?.objectWillChange.send()
+            }
+        }
+    }
+    
+    // MARK: - DAY 2 & 3 LOGIC (Normal Flow)
     func startDay2() {
         currentDay = 2
         timeRemaining = 20
         spawnRate = 2.0
+        activeTooltip = .none // Pastikan tooltip bersih
         
-        // DAY 2: Tambah Email Server (Biru)
         controller?.allowedPackets = [.video, .email]
         controller?.currentLevel.servers.append(
             ServerData(name: "EMAIL SERVER", position: CGPoint(x: 0.85, y: 0.75), acceptedType: .email)
         )
-        controller?.onLevelStructureChanged?() // Gambar ulang layar agar server biru muncul
+        controller?.onLevelStructureChanged?()
         
-        controller?.showDialogue("DAY 2: BUSINESS HOUR\nGood job. Now the User needs to send Emails.\n\nI just plugged in the Blue Server at the bottom. Update your router rules so Blue packets don't crash the Video server!") { [weak self] in
+        controller?.showDialogue("DAY 2: EXPANSION\n\nWe added an Email Server (Blue).\nUpdate your router configuration! And don't forget to wire it up.") { [weak self] in
             self?.startTimer()
         }
     }
@@ -74,15 +122,16 @@ class Scenario1Manager: ObservableObject {
     func startDay3() {
         currentDay = 3
         timeRemaining = 20
-        spawnRate = 1.2 // Cepat dan panik
+        spawnRate = 1.2
+        activeTooltip = .none
         
-        // DAY 3: Masukkan Malware (Hijau), tidak ada server baru, hanya ancaman baru
         controller?.allowedPackets = [.video, .email, .malware]
         
-        controller?.showDialogue("DAY 3: SECURITY BREACH\nWARNING! We are detecting Malware (GREEN) on the network!\n\nDo NOT let it reach the servers. Configure a rule to DROP green packets into the firewall immediately!") { [weak self] in
+        controller?.showDialogue("DAY 3: SECURITY ALERT\n\nMalware detected (Green).\nConfigure the firewall to DROP green packets immediately!") { [weak self] in
             self?.startTimer()
         }
     }
+        
     
     // MARK: - TIMER
     func startTimer() {
@@ -93,7 +142,7 @@ class Scenario1Manager: ObservableObject {
             if !controller.isPausedForDialogue && !controller.showLogicMenu {
                 if self.timeRemaining > 0 {
                     self.timeRemaining -= 1
-                    controller.objectWillChange.send() // Refresh UI
+                    controller.objectWillChange.send()
                 } else {
                     self.advanceDay()
                 }
@@ -106,7 +155,7 @@ class Scenario1Manager: ObservableObject {
         if currentDay == 1 { startDay2() }
         else if currentDay == 2 { startDay3() }
         else {
-            controller?.showDialogue("SHIFT OVER.\nGreat work keeping the network secure.\nFINAL SCORE: \(controller?.score ?? 0)") { [weak self] in
+            controller?.showDialogue("SHIFT COMPLETE.\nFinal Score: \(controller?.score ?? 0)") { [weak self] in
                 self?.controller?.exitToMenu()
             }
         }

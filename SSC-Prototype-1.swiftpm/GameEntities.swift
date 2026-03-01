@@ -30,9 +30,9 @@ enum PacketType {
     
     var speed: CGFloat {
         switch self {
-        case .video: return 200.0
+        case .video: return 150.0
         case .email: return 150.0
-        case .malware: return 220.0
+        case .malware: return 150.0
         }
     }
     

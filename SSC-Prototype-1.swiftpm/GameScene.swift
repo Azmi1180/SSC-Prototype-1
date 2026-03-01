@@ -18,7 +18,15 @@ class GameScene: SKScene {
     private var activeDragLine: SKShapeNode?
     private var activeStartNode: SKNode?
     
+    let cam = SKCameraNode()
+    
     override func didMove(to view: SKView) {
+        // Setup Camera
+        self.camera = cam
+        addChild(cam)
+        // Center camera initially (assuming scene size 400x800, center is 200,400)
+        cam.position = CGPoint(x: size.width/2, y: size.height/2)
+        
         backgroundColor = GameTheme.darkerBase
         
         gameController?.onRulesChanged = { [weak self] routerID, newRules in
@@ -29,6 +37,11 @@ class GameScene: SKScene {
             if let levelData = self?.gameController?.currentLevel {
                 self?.loadLevel(levelData: levelData)
             }
+        }
+        
+        gameController?.onForceResetScene = { [weak self] in
+            self?.removeAllChildren()
+            self?.removeAllActions()
         }
         
         if let levelData = gameController?.currentLevel {
@@ -56,7 +69,7 @@ class GameScene: SKScene {
         
         // 2. Setup Routers
         for routerData in levelData.routers {
-            let rNode = RouterNode(radius: 40)
+            let rNode = RouterNode(radius: 80)
             rNode.position = skPosition(for: routerData.position)
             rNode.rules = routerData.rules
             rNode.userData = ["id": routerData.id, "type": "router"] // Penting untuk validasi
@@ -207,6 +220,7 @@ class GameScene: SKScene {
                 gameController?.selectRouter(id: rID)
             }
         }
+                
         
         activeStartNode = nil
     }
@@ -225,25 +239,30 @@ class GameScene: SKScene {
     }
     
     func spawnPacket() {
-        guard let source = sources.randomElement(),
-              let allowed = gameController?.allowedPackets,
+        guard let controller = gameController,
+              let source = sources.randomElement(),
               let sourceID = source.userData?["id"] as? UUID else { return }
-        
-        guard let type = allowed.randomElement() else { return }
+                
+        if controller.currentLevel.connections.count < 2 {
+            return
+        }
+                
+        guard let type = controller.allowedPackets.randomElement() else { return }
         
         let packet = PacketNode(type: type)
         packet.position = source.position
         addChild(packet)
         
-        let connection = gameController?.currentLevel.connections.first(where: { $0.fromID == sourceID })
+        // Cek apakah ada kabel dari Client ini ke Router
+        let connection = controller.currentLevel.connections.first(where: { $0.fromID == sourceID })
         
         if let connectedRouterID = connection?.toID, let targetRouter = routers[connectedRouterID] {
-            
             let distance = hypot(targetRouter.position.x - source.position.x, targetRouter.position.y - source.position.y)
             let move = SKAction.move(to: targetRouter.position, duration: distance / type.speed)
             let decide = SKAction.run { [weak self] in self?.processPacketAtRouter(packet, router: targetRouter) }
             packet.run(SKAction.sequence([move, decide]))
         } else {
+            // TIDAK ADA KABEL DARI USER: Paket hancur
             let drop = SKAction.sequence([
                 SKAction.scale(to: 0, duration: 0.3),
                 SKAction.removeFromParent()
@@ -324,6 +343,7 @@ class GameScene: SKScene {
         
     func checkSuccess(packet: PacketNode, target: SKNode) {
         guard let server = target as? DestinationNode else { return }
+                
         
         if packet.type == .malware {
             gameController?.score -= 30

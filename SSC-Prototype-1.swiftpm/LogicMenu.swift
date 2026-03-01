@@ -30,6 +30,7 @@ struct LogicMenu: View {
         
         return actions
     }
+        
 
     var body: some View {
         ZStack {
@@ -375,6 +376,7 @@ struct LogicMenu: View {
                 guard !isMemoryFull else { return }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 controller.addRule(color: selectedColor, action: selectedAction)
+                                
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: isMemoryFull ? "lock.fill" : "bolt.fill")

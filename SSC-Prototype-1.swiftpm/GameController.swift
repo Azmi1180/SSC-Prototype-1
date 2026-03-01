@@ -15,6 +15,12 @@ enum AppState {
     case playing
 }
 
+enum CinematicEvent {
+    case slowMoZoom
+    case spawnOnePacket
+    case restoreSpeed
+}
+
 // MARK: - LEVEL DATA MODELS
 // Struktur data untuk menyimpan konfigurasi setiap skenario
 
@@ -87,6 +93,9 @@ class GameController: ObservableObject {
     var onRulesChanged: ((UUID, [LogicRule]) -> Void)?
     var onLevelStructureChanged: (() -> Void)?
     var onServersSwapped: (() -> Void)?
+    var onForceResetScene: (() -> Void)?
+        
+    var onCinematicEvent: ((CinematicEvent) -> Void)?
     
     // Animation Trigger for Servers (Untuk efek lampu kedip)
     @Published var serverAnimationTrigger: UUID? = nil
@@ -94,6 +103,7 @@ class GameController: ObservableObject {
     // Scenario Manager
     var scenario1: Scenario1Manager!
     // var scenario2: Scenario2Manager! (Nanti bisa ditambah)
+        
 
     // MARK: - INITIALIZATION
     init() {
@@ -121,10 +131,11 @@ class GameController: ObservableObject {
         self.activeRules.removeAll()
         self.selectedRouterID = nil
         
+        onForceResetScene?()
+        
         if index == 0 {
-            scenario1.startGame() // Jalankan logika Skenario 1
+            scenario1.startGame()
         } else {
-            // Placeholder untuk skenario lain
             print("Scenario \(index + 1) not implemented yet.")
         }
         
@@ -178,12 +189,11 @@ class GameController: ObservableObject {
     
     // MARK: - CONNECTION MANAGEMENT (CABLE DRAG)
     func addConnection(from: UUID, to: UUID) {
-        // Cek duplikasi kabel
         if !currentLevel.connections.contains(where: { $0.fromID == from && $0.toID == to }) {
             let newConnection = NodeConnection(fromID: from, toID: to)
             currentLevel.connections.append(newConnection)
-            // Suruh SpriteKit gambar ulang kabel
-            onLevelStructureChanged?()
+            onLevelStructureChanged?()                        
+            scenario1.checkCableProgress()
         }
     }
     

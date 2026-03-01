@@ -60,11 +60,44 @@ struct GamePlayView: View {
                         .position(x: server.position.x * geo.size.width, y: server.position.y * geo.size.height)
                 }
                 
+                // MARK: - LAYER 2.5: TOOLTIPS (Guidance)
+                                
+                // STEP 1: Tooltip di atas Client (User)
+                if controller.scenario1.activeTooltip == .dragCableClientToRouter {
+                    if let client = controller.currentLevel.clients.first {
+                        TooltipView(text: "1. DRAG CABLE ➔ ROUTER", pointingUp: false)
+                            .position(x: client.position.x * geo.size.width, y: (client.position.y * geo.size.height) - 50)
+                            .id("tooltip_1")
+                            .transition(.scale.combined(with: .opacity))
+                            .zIndex(50)
+                    }
+                }
+                
+                // STEP 2: Tooltip di atas Router (Minta tarik ke Server)
+                if controller.scenario1.activeTooltip == .dragCableRouterToServer {
+                    if let router = controller.currentLevel.routers.first {
+                        TooltipView(text: "2. DRAG CABLE ➔ SERVER", pointingUp: false)
+                            .position(x: router.position.x * geo.size.width, y: (router.position.y * geo.size.height) - 60)
+                            .id("tooltip_2")
+                            .transition(.scale.combined(with: .opacity))
+                            .zIndex(50)
+                    }
+                }
+                
+                // STEP 3: Tooltip di atas Router (Minta Config)
+                if controller.scenario1.activeTooltip == .configureRouter {
+                    if let router = controller.currentLevel.routers.first {
+                        TooltipView(text: "3. TAP TO CONFIGURE", pointingUp: false)
+                            .position(x: router.position.x * geo.size.width, y: (router.position.y * geo.size.height) - 60)
+                            .id("tooltip_3")
+                            .transition(.scale.combined(with: .opacity))
+                            .zIndex(50)
+                    }
+                }
+                
                 // LAYER 3: HUD (Score, Timer, Packet Loss, Legend)
                 VStack {
-                    // --- TOP HUD (Tombol Exit, Day, Score, Packet Loss) ---
                     HStack(alignment: .top) {
-                        // Kiri: Exit & Info Hari
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 12) {
                                 Button(action: { controller.exitToMenu() }) {
